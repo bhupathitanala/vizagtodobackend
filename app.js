@@ -1,133 +1,83 @@
+// app.js
 import express from "express";
 import mongoose from "mongoose";
 import bodyParser from "body-parser";
 import cors from "cors";
 import tasks from "./models/tasks.js";
+
 const app = express();
+app.use(bodyParser.json());
+app.use(cors());
 
-app.use(bodyParser.json())
-app.use(express.json())
-app.use(cors())
+// MongoDB connection (runs on every request — OK for serverless)
+mongoose.connect('mongodb+srv://ratnabhupathitanala:Aditya123@cluster0.eahgacc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+  .then(() => console.log("Connected to Database"))
+  .catch((err) => console.log(err));
 
-// to POST data
-app.post('/api/addtask', (req, res, next)=>{
-    console.log(req.body)
- const {task,status,deadline} = req.body;
- 
- const tas = new tasks({
-    task,
-    status,
-    deadline
- })
+// POST: Add Task
+app.post('/api/addtask', async (req, res) => {
+  const { task, status, deadline } = req.body;
 
- tas.save()
- return res.status(200).json({message: "success"})
-})
-
-
-
-
-// GET data API
-// app.get('/api/getTask',async (req, res, next)=>{
-//     let tas;
-    
-//         tas = await tasks.find();
-    
-//     if(!tas){
-//         return res.status(404).json({message: "No task Found."})
-//     }
-//     return res.status(200).json({tas})
-// })
-app.get('/api/getTask', async (req, res, next) => {
-    let tas;
-    try {
-        tas = await tasks.find();
-    } catch (err) {
-        return res.status(500).json({ message: "Error fetching tasks." });
-    }
-
-    if (!tas || tas.length === 0) {
-        return res.status(404).json({ message: "No task Found." });
-    }
-    return res.status(200).json({ tas });
+  try {
+    const newTask = new tasks({ task, status, deadline });
+    await newTask.save();
+    res.status(200).json({ message: "success" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to save task", error: err });
+  }
 });
 
+// GET: All Tasks
+app.get('/api/getTask', async (req, res) => {
+  try {
+    const tas = await tasks.find();
+    if (!tas.length) return res.status(404).json({ message: "No task Found." });
+    res.status(200).json({ tas });
+  } catch {
+    res.status(500).json({ message: "Error fetching tasks." });
+  }
+});
 
-// delete student
-app.delete('/api/deletetask/:_id',async (req, res, next)=>{
+// DELETE: Task by ID
+app.delete('/api/deletetask/:_id', async (req, res) => {
+  const { _id } = req.params;
 
-    const id=req.params._id
+  try {
+    const deleted = await tasks.findByIdAndDelete(_id);
+    if (!deleted) return res.status(400).json({ message: "Unable to delete." });
+    res.status(200).json({ message: "Deleted." });
+  } catch (err) {
+    res.status(500).json({ message: "Error deleting task." });
+  }
+});
 
-console.log
+// GET: Task data by ID
+app.get('/api/get_task_data/:id', async (req, res) => {
+  try {
+    const task = await tasks.findById(req.params.id);
+    if (!task) return res.status(404).json({ message: "No task Found." });
+    res.status(200).json({ task_data: task });
+  } catch {
+    res.status(500).json({ message: "Error fetching task." });
+  }
+});
 
-    let task_delete;
-    try{
-        task_delete= await tasks.findByIdAndDelete({_id:id})
-    }
-    catch(err)
-    {
-        return console.log(err)
-    }
-    
-    if(!task_delete){
-        return res.status(400).json({message: "unable to delete."})
-    }
+// PUT: Update task by ID
+app.put('/api/edit_task/:id', async (req, res) => {
+  const { task, status, deadline } = req.body;
 
-    return res.status(200).json({message: "deleted."})
+  try {
+    const updated = await tasks.findByIdAndUpdate(req.params.id, {
+      task,
+      status,
+      deadline,
+    }, { new: true });
 
-})
+    if (!updated) return res.status(400).json({ message: "Unable to update the task." });
+    res.status(200).json({ tsk: updated });
+  } catch {
+    res.status(500).json({ message: "Error updating task." });
+  }
+});
 
-//edit task data
-app.get('/api/get_task_data/:id', async (req, res, next)=>{
-    const _id = req.params.id
-    let task_data;
-    try{
-        task_data = await tasks.findById({_id});
-    }catch(err){
-        return console.log(err)
-    }
-    if(!task_data){
-        return res.status(400).json({message:"No task Found."})
-    }
-    return res.status(201).json({task_data})
-})
-
-
-
-// update form by id
-app.put('/api/edit_task/:id', async (req, res, next)=>{
-    const taskid = req.params.id
-    const {task, status, deadline} = req.body;
-    let tsk;
-    try{
-        tsk = await student.findByIdAndUpdate(taskid,{
-            task,
-            status,
-            deadline
-        });
-    }catch(err){
-        return console.log(err)
-    }
-    if(!tsk){
-        return res.status(400).json({message:"Unable to update the task."})
-    }
-    return res.status(200).json({tsk})
-})
-// end edit user
-
-//database connection
-
-
-
-mongoose.connect('mongodb+srv://ratnabhupathitanala:Aditya123@cluster0.eahgacc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
-.then(() => app.listen(4000))
-.then(() =>
-console.log("Connected to Database & Listining to localhost 4000")
-)
-.catch((err) => console.log(err));
-
-
-
-
-
-
+export default app;
